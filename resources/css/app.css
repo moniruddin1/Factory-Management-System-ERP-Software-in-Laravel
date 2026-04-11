@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+[x-cloak] { display: none !important; }
+@media print {
+    body { background: white !important; color: black !important; }
+    /* Hide specific elements during print */
+    nav, header, footer, .block, form, button, .md\:group-hover\:opacity-100 { display: none !important; }
+    .w-64 { display: none !important; } /* Hide Sidebar completely */
+    .md\:col-span-2 { grid-column: span 3 / span 3 !important; }
+    /* Make table suitable for print */
+    table { width: 100% !important; border-collapse: collapse !important; }
+    th, td { border: 1px solid #ccc !important; padding: 8px !important; }
+    /* Reset text colors */
+    * { color: black !important; }
+}
