@@ -11,6 +11,12 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\Setup\AuditLogController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\PurchaseController;
+use App\Http\Controllers\SupplierPaymentController;
+// পাবলিক ইনভয়েস দেখার রাউট
+Route::get('/qrinvoice/{invoice_no}', [PurchaseController::class, 'qrInvoicePreview'])
+    ->name('qrinvoice.preview')
+    ->middleware('signed'); // এটি ইউআরএল টেম্পারিং প্রতিরোধ করবে
 
 Route::redirect('/', '/login');
 
@@ -47,21 +53,39 @@ Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-log
 // 2. Product Mapping
 Route::get('supplier-products', [App\Http\Controllers\SupplierProductController::class, 'index'])->name('supplier-products.index');
 Route::post('supplier-products/{supplier}', [App\Http\Controllers\SupplierProductController::class, 'store'])->name('supplier-products.store');
+
+
+
             // 3. Purchase Invoices
-            Route::get('purchases', function() { return 'Purchase Invoices Page'; })->name('purchases.index');
-            Route::get('purchases/create', function() { return 'Create Purchase Page'; })->name('purchases.create');
+            Route::get('purchases', [PurchaseController::class, 'index'])->name('purchases.index');
+            Route::get('purchases/create', [PurchaseController::class, 'create'])->name('purchases.create');
+            Route::post('purchases', [PurchaseController::class, 'store'])->name('purchases.store');
+            Route::get('purchases/{purchase}', [PurchaseController::class, 'show'])->name('purchases.show');
+            Route::get('get-supplier-products/{supplier_id}', [PurchaseController::class, 'getSupplierProducts'])->name('get-supplier-products');
+Route::resource('supplier-payments', SupplierPaymentController::class);
 
             // 4. Supplier Ledger
             Route::get('supplier-ledgers', function() { return 'Supplier Ledger Page'; })->name('supplier-ledgers.index');
 
-            // 5. Payment Management
-            Route::get('supplier-payments', function() { return 'Payment Management Page'; })->name('supplier-payments.index');
 
             // 6. Return Management
             Route::get('purchase-returns', function() { return 'Purchase Returns Page'; })->name('purchase-returns.index');
 
             // 7. Reporting & Statements
             Route::get('supplier-reports', function() { return 'Supplier Reports Page'; })->name('supplier-reports.index');
+
+
+
+
+
+
+
+
+
+
+
+
+
 });
 
 require __DIR__.'/auth.php';

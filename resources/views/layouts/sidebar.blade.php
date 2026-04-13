@@ -37,7 +37,7 @@
             </div>
         @endif
 
-        <div x-data="{ open: {{ request()->routeIs(['suppliers.*', 'supplier-products.*', 'purchases.*', 'supplier-payments.*', 'purchase-returns.*', 'supplier-ledgers.*', 'supplier-reports.*']) ? 'true' : 'false' }} }">
+        <div x-data="{ open: {{ request()->routeIs(['suppliers.*', 'supplier-products.*', 'purchases.*', 'supplier-supplier-payments.*', 'purchase-returns.*', 'supplier-ledgers.*', 'supplier-reports.*']) ? 'true' : 'false' }} }">
             <button @click="open = !open" class="w-full flex items-center justify-between p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition text-gray-600 dark:text-gray-300">
                 <div class="flex items-center">
                     <i class="fa-solid fa-truck-moving w-8 text-center text-purple-500 dark:text-purple-400"></i>
@@ -59,7 +59,7 @@
                     Purchase Invoices
                 </a>
 
-                <a href="{{ route('supplier-payments.index') }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('supplier-payments.*') ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                <a href="{{ route('supplier-payments.index') }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('supplier-supplier-payments.*') ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
                     Payments & Dues
                 </a>
 
