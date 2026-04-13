@@ -13,6 +13,9 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\SupplierPaymentController;
+use App\Http\Controllers\PurchaseReturnController;
+use App\Http\Controllers\SupplierLedgerController;
+
 // পাবলিক ইনভয়েস দেখার রাউট
 Route::get('/qrinvoice/{invoice_no}', [PurchaseController::class, 'qrInvoicePreview'])
     ->name('qrinvoice.preview')
@@ -64,15 +67,30 @@ Route::post('supplier-products/{supplier}', [App\Http\Controllers\SupplierProduc
             Route::get('get-supplier-products/{supplier_id}', [PurchaseController::class, 'getSupplierProducts'])->name('get-supplier-products');
 Route::resource('supplier-payments', SupplierPaymentController::class);
 
-            // 4. Supplier Ledger
-            Route::get('supplier-ledgers', function() { return 'Supplier Ledger Page'; })->name('supplier-ledgers.index');
+            Route::prefix('supplier-ledgers')->group(function () {
+                Route::get('/', [SupplierLedgerController::class, 'index'])->name('supplier-ledgers.index');
+                Route::get('/{id}/show', [SupplierLedgerController::class, 'show'])->name('supplier-ledgers.show');
+            });
 
 
-            // 6. Return Management
-            Route::get('purchase-returns', function() { return 'Purchase Returns Page'; })->name('purchase-returns.index');
+            Route::prefix('purchase-returns')->group(function () {
+                Route::get('/', [PurchaseReturnController::class, 'index'])->name('purchase-returns.index');
+                Route::get('/create', [PurchaseReturnController::class, 'create'])->name('purchase-returns.create');
+                Route::post('/store', [PurchaseReturnController::class, 'store'])->name('purchase-returns.store');
 
-            // 7. Reporting & Statements
-            Route::get('supplier-reports', function() { return 'Supplier Reports Page'; })->name('supplier-reports.index');
+                // নির্দিষ্ট পারচেজ আইডির আইটেমগুলো পাওয়ার জন্য AJAX রাউট
+                Route::get('/get-purchase-items/{id}', [PurchaseReturnController::class, 'getPurchaseItems']);
+            });
+
+            Route::get('/{id}/show', [PurchaseReturnController::class, 'show'])->name('purchase-returns.show');
+
+            Route::prefix('supplier-reports')->name('supplier-reports.')->group(function () {
+                Route::get('/', [App\Http\Controllers\SupplierReportController::class, 'index'])->name('index');
+                Route::get('/due-balances', [App\Http\Controllers\SupplierReportController::class, 'dueReport'])->name('due-report');
+            Route::get('/purchase-summary', [App\Http\Controllers\SupplierReportController::class, 'purchaseReport'])->name('purchase-report');
+
+            });
+            Route::get('/supplier-reports/payment-summary', [App\Http\Controllers\SupplierReportController::class, 'paymentReport'])->name('supplier-reports.payment-report');
 
 
 

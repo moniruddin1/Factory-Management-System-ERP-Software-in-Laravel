@@ -74,11 +74,11 @@ class SupplierPaymentController extends Controller
     // নতুন পেমেন্ট ফর্ম দেখানোর জন্য
         public function create(Request $request)
         {
-            $suppliers = Supplier::select('id', 'company_name')->where('is_active', 1)->get();
+            // এখানে 'phone' যুক্ত করা হয়েছে
+            $suppliers = Supplier::select('id', 'company_name', 'phone')->where('is_active', 1)->get();
 
             $selectedPurchase = null;
             if ($request->has('purchase_id')) {
-                // রিলেশনসহ ডাটা লোড করছি যাতে ব্লেড ফাইলে সাপ্লায়ারের নাম দেখানো যায়
                 $selectedPurchase = Purchase::with('supplier')->find($request->purchase_id);
             }
 
