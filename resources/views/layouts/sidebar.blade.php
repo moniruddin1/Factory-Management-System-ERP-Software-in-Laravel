@@ -81,18 +81,42 @@
             </div>
         </div>
 
-        <div x-data="{ open: false }">
+        <div x-data="{ open: {{ request()->routeIs(['locations.*', 'staffs.*', 'inventory.*', 'boms.*', 'productions.*']) ? 'true' : 'false' }} }">
             <button @click="open = !open" class="w-full flex items-center justify-between p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition text-gray-600 dark:text-gray-300">
                 <div class="flex items-center">
                     <i class="fa-solid fa-boxes-stacked w-8 text-center text-green-500 dark:text-green-400"></i>
                     <span class="font-medium">Inventory & Mfg</span>
                 </div>
-                <i class="fa-solid fa-chevron-down text-xs transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i class="fa-solid fa-chevron-down text-xs transition-transform duration-200" :class="open ? 'rotate-180' : ''"></i>
             </button>
+
             <div x-show="open" x-cloak class="ml-8 mt-2 space-y-1 border-l-2 border-gray-200 dark:border-slate-700 pl-4">
-                <a href="#" class="block p-2 text-sm rounded-lg text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white italic opacity-70">Stock (FIFO) - Coming</a>
-                <a href="#" class="block p-2 text-sm rounded-lg text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white italic opacity-70">Supervisor Transfers</a>
-                <a href="#" class="block p-2 text-sm rounded-lg text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white italic opacity-70">Production Receive</a>
+
+                <a href="{{ Route::has('locations.index') ? route('locations.index') : '#' }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('locations.*') ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                    Locations & Stores
+                </a>
+                <a href="{{ Route::has('staffs.index') ? route('staffs.index') : '#' }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('staffs.*') ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                    Staff & Supervisors
+                </a>
+
+                <a href="{{ Route::has('inventory.stock') ? route('inventory.stock') : '#' }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('inventory.stock') ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                    Current Stock
+                </a>
+                <a href="{{ Route::has('inventory.ledger') ? route('inventory.ledger') : '#' }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('inventory.ledger') ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                    Inventory Ledger
+                </a>
+
+                <a href="{{ Route::has('inventory.issue.index') ? route('inventory.issue.index') : '#' }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('inventory.issue.*') ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                    Material Issue (Voucher)
+                </a>
+
+                <a href="{{ Route::has('boms.index') ? route('boms.index') : '#' }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('boms.*') ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                    BOM (Shoe Recipe)
+                </a>
+                <a href="{{ Route::has('productions.index') ? route('productions.index') : '#' }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('productions.*') ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                    Productions (Mfg)
+                </a>
+
             </div>
         </div>
 

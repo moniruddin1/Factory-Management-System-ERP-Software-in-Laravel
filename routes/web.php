@@ -17,6 +17,7 @@ use App\Http\Controllers\PurchaseReturnController;
 use App\Http\Controllers\SupplierLedgerController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\StaffController;
+use App\Http\Controllers\BomController;
 
 // পাবলিক ইনভয়েস দেখার রাউট
 Route::get('/qrinvoice/{invoice_no}', [PurchaseController::class, 'qrInvoicePreview'])
@@ -105,6 +106,22 @@ Route::middleware(['auth'])->group(function () {
 
 // Inventory Routes
 Route::get('/inventory/stock', [\App\Http\Controllers\InventoryController::class, 'stockReport'])->name('inventory.stock');
+Route::get('/inventory/ledger', [\App\Http\Controllers\InventoryController::class, 'ledger'])->name('inventory.ledger');
+// Material Issue Routes
+Route::get('/inventory/issue', [\App\Http\Controllers\InventoryController::class, 'issueCreate'])->name('inventory.issue.create');
+Route::post('/inventory/issue', [\App\Http\Controllers\InventoryController::class, 'issueStore'])->name('inventory.issue.store');
+Route::get('/inventory/get-stock-details', [\App\Http\Controllers\InventoryController::class, 'getStockDetails'])->name('inventory.get_stock_details'); // AJAX এর জন্য
+Route::get('/inventory/issues', [\App\Http\Controllers\InventoryController::class, 'issueIndex'])->name('inventory.issue.index');
+Route::get('/inventory/issues/{id}', [\App\Http\Controllers\InventoryController::class, 'issueShow'])->name('inventory.issue.show');
+
+
+// Inventory & Mfg Routes
+Route::resource('boms', BomController::class);
+
+// Production Routes
+Route::get('productions/get-bom/{id}', [\App\Http\Controllers\Inventory\ProductionController::class, 'getBomDetails'])->name('productions.get-bom');
+Route::resource('productions', \App\Http\Controllers\Inventory\ProductionController::class);
+Route::get('/productions/get-issue/{id}', [App\Http\Controllers\Inventory\ProductionController::class, 'getIssueDetails']);
 
 
 
