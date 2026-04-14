@@ -18,6 +18,7 @@ use App\Http\Controllers\SupplierLedgerController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\BomController;
+use App\Http\Controllers\Inventory\ProductionController;
 
 // পাবলিক ইনভয়েস দেখার রাউট
 Route::get('/qrinvoice/{invoice_no}', [PurchaseController::class, 'qrInvoicePreview'])
@@ -121,7 +122,13 @@ Route::resource('boms', BomController::class);
 // Production Routes
 Route::get('productions/get-bom/{id}', [\App\Http\Controllers\Inventory\ProductionController::class, 'getBomDetails'])->name('productions.get-bom');
 Route::resource('productions', \App\Http\Controllers\Inventory\ProductionController::class);
-Route::get('/productions/get-issue/{id}', [App\Http\Controllers\Inventory\ProductionController::class, 'getIssueDetails']);
+Route::get('productions/get-issue/{id}', [\App\Http\Controllers\Inventory\ProductionController::class, 'getIssueDetails'])->name('productions.get-issue');
+// আগের get-bom রাউটটি তো আছেই:
+Route::get('productions/get-bom/{id}', [\App\Http\Controllers\Inventory\ProductionController::class, 'getBomDetails'])->name('productions.get-bom');
+
+Route::resource('productions', \App\Http\Controllers\Inventory\ProductionController::class);
+Route::get('/productions/analytics', [ProductionController::class, 'analytics'])->name('productions.analytics');
+
 
 
 

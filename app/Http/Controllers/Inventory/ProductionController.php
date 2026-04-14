@@ -17,7 +17,13 @@ use Illuminate\Support\Facades\Auth;
 class ProductionController extends Controller
 {
     // ... index, show methods (আগের মতোই থাকবে) ...
+public function show($id)
+    {
+        // Eager load all necessary relationships
+        $production = \App\Models\Production::with(['issue', 'finishedProduct', 'items.rawMaterial'])->findOrFail($id);
 
+        return view('inventory.productions.show', compact('production'));
+    }
     public function create()
     {
         $boms = Bom::with('finishedProduct')->get();
@@ -35,6 +41,20 @@ class ProductionController extends Controller
         return response()->json($issue);
     }
 
+// AJAX: BOM (Formula) এর আইটেম আনার জন্য
+    public function getBomDetails($id)
+    {
+        $bom = \App\Models\Bom::with(['items.rawMaterial', 'items.unit'])->findOrFail($id);
+        return response()->json($bom);
+    }
+
+public function index()
+    {
+        // Eager load relationships properly
+        $productions = Production::with(['issue', 'finishedProduct'])->latest()->paginate(10);
+
+        return view('inventory.productions.index', compact('productions'));
+    }
     public function store(Request $request)
     {
         $request->validate([
@@ -61,10 +81,12 @@ class ProductionController extends Controller
 
             $totalCost = 0;
             $productionItems = [];
-
+            $nextId = Production::max('id') + 1;
+            $batchNo = 'BATCH-' . date('Ym') . '-' . str_pad($nextId, 3, '0', STR_PAD_LEFT);
             // ১. মেইন প্রডাকশন রেকর্ড তৈরি
             $production = Production::create([
                 'reference_no' => $referenceNo,
+                'batch_no' => $batchNo,
                 'production_issue_id' => $issue->id,
                 'bom_id' => $bom->id,
                 'finished_product_id' => $finishedProduct->id,
@@ -220,4 +242,24 @@ class ProductionController extends Controller
             return back()->withInput()->withErrors(['error' => 'Error: ' . $e->getMessage()]);
         }
     }
+public function analytics()
+{
+    $productions = Production::with('items')->get();
+
+    $totalWastageCost = 0;
+    $totalSavingsCost = 0;
+
+    foreach($productions as $prd) {
+        $variance = $prd->material_variance;
+        if($variance > 0) $totalWastageCost += $variance;
+        else $totalSavingsCost += abs($variance);
+    }
+
+    // টপ ৫টি ওয়েস্টেজ হওয়া ব্যাচ
+    $topWastageBatches = $productions->sortByDesc(function($prd) {
+        return $prd->material_variance;
+    })->take(5);
+
+    return view('inventory.productions.analytics', compact('totalWastageCost', 'totalSavingsCost', 'topWastageBatches'));
+}
 }

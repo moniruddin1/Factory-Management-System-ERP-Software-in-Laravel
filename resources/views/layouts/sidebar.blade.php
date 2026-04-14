@@ -92,12 +92,6 @@
 
             <div x-show="open" x-cloak class="ml-8 mt-2 space-y-1 border-l-2 border-gray-200 dark:border-slate-700 pl-4">
 
-                <a href="{{ Route::has('locations.index') ? route('locations.index') : '#' }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('locations.*') ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
-                    Locations & Stores
-                </a>
-                <a href="{{ Route::has('staffs.index') ? route('staffs.index') : '#' }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('staffs.*') ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
-                    Staff & Supervisors
-                </a>
 
                 <a href="{{ Route::has('inventory.stock') ? route('inventory.stock') : '#' }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('inventory.stock') ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
                     Current Stock

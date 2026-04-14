@@ -16,4 +16,9 @@ class ProductionIssue extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+// এই ভাউচারটি কি প্রোডাকশনে ব্যবহার হয়েছে?
+public function production()
+{
+    return $this->hasOne(Production::class, 'production_issue_id');
+}
 }
