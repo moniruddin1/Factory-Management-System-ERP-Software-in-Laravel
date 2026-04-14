@@ -4,8 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Purchase;
 use App\Models\Supplier;
+use App\Models\Location;
+use App\Models\InventoryStock;
+use App\Models\InventoryTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB; // DB transaction এর জন্য
+use Illuminate\Support\Facades\Auth;
 
 class PurchaseController extends Controller
 {
@@ -45,92 +49,204 @@ class PurchaseController extends Controller
     }
 
     // ৪. নতুন ইনভয়েস ডাটাবেজে সেভ করার জন্য
-    public function store(Request $request)
-    {
-        // বেসিক ভ্যালিডেশন
-        $request->validate([
-            'purchase_date'      => 'required|date',
-            'supplier_id'        => 'required|exists:suppliers,id',
-            'items'              => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity'   => 'required|numeric|min:0.01',
-            'items.*.unit_price' => 'required|numeric|min:0',
-        ]);
-
-        try {
-            DB::beginTransaction();
-
-            // মূল পারচেজ বিল তৈরি করা
-            $purchase = Purchase::create([
-                'invoice_no'       => $request->invoice_no,
-                'supplier_id'      => $request->supplier_id,
-                'purchase_date'    => $request->purchase_date,
-                'invoice_type'     => $request->invoice_type,
-                'reference_no'     => $request->reference_no,
-                'total_amount'     => $request->total_amount,
-                'discount'         => $request->discount ?? 0,
-                'tax_amount'       => $request->tax_amount ?? 0,
-                'shipping_cost'    => $request->shipping_cost ?? 0,
-                'other_charges'    => $request->other_charges ?? 0,
-                'round_adjustment' => $request->round_adjustment ?? 0,
-                'grand_total'      => $request->grand_total,
-                'paid_amount'      => $request->paid_amount ?? 0,
-                'due_amount'       => $request->due_amount ?? 0,
-                'payment_method'   => $request->payment_method,
-                'status'           => $request->status,
-                'note'             => $request->note,
-                'created_by'       => auth()->id(), // যে ইউজার লগইন করা আছে
+    // ৪. নতুন ইনভয়েস ডাটাবেজে সেভ করার জন্য
+        public function store(Request $request)
+        {
+            // বেসিক ভ্যালিডেশন
+            $request->validate([
+                'purchase_date'      => 'required|date',
+                'supplier_id'        => 'required|exists:suppliers,id',
+                'items'              => 'required|array|min:1',
+                'items.*.product_id' => 'required|exists:products,id',
+                'items.*.quantity'   => 'required|numeric|min:0.01',
+                'items.*.unit_price' => 'required|numeric|min:0',
             ]);
 
-            // বিলে থাকা প্রতিটি প্রোডাক্ট (Purchase Items) সেভ করা
-            foreach ($request->items as $item) {
-                // প্রতিটি আইটেমের টোটাল হিসাব করা
-                $total_price = ($item['quantity'] * $item['unit_price']) - ($item['discount'] ?? 0);
+            try {
+                DB::beginTransaction();
 
-                $purchase->items()->create([
-                    'product_id'  => $item['product_id'],
-                    'quantity'    => $item['quantity'],
-                    'unit_price'  => $item['unit_price'],
-                    'discount'    => $item['discount'] ?? 0,
-                    'total_price' => $total_price,
+                $location = Location::where('type', 'raw_material_store')->first();
+                if (!$location) {
+                    throw new \Exception('Raw Material Store location not found. Please create one in Locations setup first.');
+                }
+
+                $total_paid_by_user = $request->paid_amount ?? 0;
+                $grand_total = $request->grand_total;
+
+                // এই বিলের জন্য সর্বোচ্চ কত টাকা নেওয়া হবে (বিলের টোটাল অথবা ইউজারের দেওয়া টাকা, যেটা ছোট)
+                $applied_to_current_invoice = min($total_paid_by_user, $grand_total);
+
+                $actual_invoice_due = max(0, $grand_total - $total_paid_by_user);
+                $current_status = $actual_invoice_due == 0 ? 'Paid' : ($applied_to_current_invoice > 0 ? 'Partial' : 'Unpaid');
+
+                // মূল পারচেজ বিল তৈরি
+                $purchase = Purchase::create([
+                    'invoice_no'       => $request->invoice_no,
+                    'supplier_id'      => $request->supplier_id,
+                    'purchase_date'    => $request->purchase_date,
+                    'invoice_type'     => $request->invoice_type,
+                    'reference_no'     => $request->reference_no,
+                    'total_amount'     => $request->total_amount,
+                    'discount'         => $request->discount ?? 0,
+                    'tax_amount'       => $request->tax_amount ?? 0,
+                    'shipping_cost'    => $request->shipping_cost ?? 0,
+                    'other_charges'    => $request->other_charges ?? 0,
+                    'round_adjustment' => $request->round_adjustment ?? 0,
+                    'grand_total'      => $grand_total,
+                    'paid_amount'      => $applied_to_current_invoice,
+                    'due_amount'       => $actual_invoice_due,
+                    'payment_method'   => $request->payment_method,
+                    'status'           => $current_status,
+                    'note'             => $request->note,
+                    'created_by'       => Auth::id(),
                 ]);
 
-                // সাপ্লায়ার ম্যাপিং পিভট টেবিলে 'last_purchase_price' আপডেট করে দেওয়া
-                DB::table('product_supplier')
-                    ->where('supplier_id', $request->supplier_id)
-                    ->where('product_id', $item['product_id'])
-                    ->update(['last_purchase_price' => $item['unit_price']]);
-            }
+                // আইটেম, পিভট টেবিল এবং স্টক আপডেট
+                foreach ($request->items as $item) {
+                    $total_price = ($item['quantity'] * $item['unit_price']) - ($item['discount'] ?? 0);
 
-            // পারচেস সেভ করার পর... (আপনার আগের কোডের সাথে মিলিয়ে নিন)
-            if ($request->paid_amount > 0) {
+                    $purchase->items()->create([
+                        'product_id'  => $item['product_id'],
+                        'quantity'    => $item['quantity'],
+                        'unit_price'  => $item['unit_price'],
+                        'discount'    => $item['discount'] ?? 0,
+                        'total_price' => $total_price,
+                    ]);
+
+                    DB::table('product_supplier')
+                        ->where('supplier_id', $request->supplier_id)
+                        ->where('product_id', $item['product_id'])
+                        ->update(['last_purchase_price' => $item['unit_price']]);
+
+                    InventoryTransaction::create([
+                        'date'             => $request->purchase_date,
+                        'product_id'       => $item['product_id'],
+                        'location_id'      => $location->id,
+                        'transaction_type' => 'Purchase',
+                        'reference_type'   => get_class($purchase),
+                        'reference_id'     => $purchase->id,
+                        'quantity'         => $item['quantity'],
+                        'unit_cost'        => $item['unit_price'],
+                        'created_by'       => Auth::id(),
+                    ]);
+
+                    $stock = InventoryStock::firstOrCreate(
+                        ['product_id' => $item['product_id'], 'location_id' => $location->id, 'batch_no' => $purchase->invoice_no],
+                        ['quantity' => 0]
+                    );
+                    $stock->increment('quantity', $item['quantity']);
+                }
+
+                // ==========================================
+                // PAYMENT DISTRIBUTION LOGIC (Your Logic)
+                // ==========================================
+
+                // ভাউচার নম্বর জেনারেট করার জন্য আগের লাস্ট আইডি বের করে রাখা
                 $lastPayment = \App\Models\SupplierPayment::orderBy('id', 'desc')->first();
-                $nextId = $lastPayment ? $lastPayment->id + 1 : 1;
+                $nextPaymentId = $lastPayment ? $lastPayment->id + 1 : 1;
 
-                \App\Models\SupplierPayment::create([
-                    'voucher_no'     => 'PAY-' . str_pad($nextId, 4, '0', STR_PAD_LEFT),
-                    'supplier_id'    => $purchase->supplier_id,
-                    'purchase_id'    => $purchase->id,
-                    'amount'         => $request->paid_amount,
-                    'payment_date'   => $purchase->purchase_date ?? now(),
-                    'payment_method' => $request->payment_method ?? 'Cash', // আপনার ফর্ম থেকে আসা মেথড
-                    'note'           => 'Initial payment during purchase',
-                    'created_by'     => \Illuminate\Support\Facades\Auth::id(),
-                ]);
+                $remaining_balance = $total_paid_by_user;
+                $adjusted_invoices_note = [];
+
+                // ১. নতুন বিলের জন্য পেমেন্ট এন্ট্রি (যদি টাকা দেওয়া হয়)
+                if ($applied_to_current_invoice > 0) {
+                    \App\Models\SupplierPayment::create([
+                        'voucher_no'     => 'PAY-' . str_pad($nextPaymentId++, 4, '0', STR_PAD_LEFT),
+                        'supplier_id'    => $purchase->supplier_id,
+                        'purchase_id'    => $purchase->id, // নতুন বিলের আইডি
+                        'amount'         => $applied_to_current_invoice,
+                        'payment_date'   => $purchase->purchase_date ?? now(),
+                        'payment_method' => $request->payment_method ?? 'Cash',
+                        'note'           => 'Payment for current invoice',
+                        'created_by'     => Auth::id(),
+                    ]);
+                    $remaining_balance -= $applied_to_current_invoice;
+                }
+
+                // ২. অতিরিক্ত টাকা থাকলে পুরোনো বিল পেমেন্ট করা
+                if ($remaining_balance > 0) {
+                    $old_unpaid_invoices = Purchase::where('supplier_id', $request->supplier_id)
+                        ->where('id', '!=', $purchase->id)
+                        ->where('due_amount', '>', 0)
+                        ->orderBy('purchase_date', 'asc')
+                        ->get();
+
+                    foreach ($old_unpaid_invoices as $old_inv) {
+                        if ($remaining_balance <= 0) break;
+
+                        $due = $old_inv->due_amount;
+                        $pay_for_this_old_inv = min($remaining_balance, $due);
+
+                        // পুরোনো বিল আপডেট
+                        $old_inv->update([
+                            'paid_amount' => $old_inv->paid_amount + $pay_for_this_old_inv,
+                            'due_amount'  => $due - $pay_for_this_old_inv,
+                            'status'      => ($due - $pay_for_this_old_inv) == 0 ? 'Paid' : 'Partial'
+                        ]);
+
+                        // পুরোনো বিলের জন্য পেমেন্ট টেবিলে আলাদা এন্ট্রি
+                        \App\Models\SupplierPayment::create([
+                            'voucher_no'     => 'PAY-' . str_pad($nextPaymentId++, 4, '0', STR_PAD_LEFT),
+                            'supplier_id'    => $request->supplier_id,
+                            'purchase_id'    => $old_inv->id, // পুরোনো বিলের আইডি
+                            'amount'         => $pay_for_this_old_inv,
+                            'payment_date'   => now(),
+                            'payment_method' => $request->payment_method ?? 'Cash',
+                            'note'           => 'Auto adjusted from invoice: ' . $purchase->invoice_no,
+                            'created_by'     => Auth::id(),
+                        ]);
+
+                        $adjusted_invoices_note[] = $old_inv->invoice_no . ' (' . $pay_for_this_old_inv . ' Tk)';
+                        $remaining_balance -= $pay_for_this_old_inv;
+                    }
+                }
+
+                // ৩. এরপরও টাকা থাকলে তা Advance Payment হিসেবে রাখা
+                if ($remaining_balance > 0) {
+                    \App\Models\SupplierPayment::create([
+                        'voucher_no'     => 'PAY-' . str_pad($nextPaymentId++, 4, '0', STR_PAD_LEFT),
+                        'supplier_id'    => $request->supplier_id,
+                        'purchase_id'    => null, // কোনো ইনভয়েস আইডি নেই মানে এটা অ্যাডভান্স
+                        'amount'         => $remaining_balance,
+                        'payment_date'   => now(),
+                        'payment_method' => $request->payment_method ?? 'Cash',
+                        'note'           => 'Advance payment received with invoice: ' . $purchase->invoice_no,
+                        'created_by'     => Auth::id(),
+                    ]);
+                }
+
+                // ৪. নতুন বিলের নোটে পুরোনো বিলের হিসাব যোগ করে দেওয়া (যাতে প্রিন্টে দেখানো যায়)
+                if (count($adjusted_invoices_note) > 0 || $remaining_balance > 0) {
+                    $extra_note = "\n--- Payment Distribution ---\n";
+                    if (count($adjusted_invoices_note) > 0) {
+                        $extra_note .= "Old Dues Paid: " . implode(', ', $adjusted_invoices_note) . ".\n";
+                    }
+                    if ($remaining_balance > 0) {
+                        $extra_note .= "Advance Kept: " . $remaining_balance . " Tk.";
+                    }
+
+                    $purchase->update([
+                        'note' => $purchase->note ? $purchase->note . "\n" . $extra_note : $extra_note
+                    ]);
+                }
+
+                // সাপ্লায়ারের ব্যালেন্স আপডেট
+                $supplier = Supplier::find($request->supplier_id);
+                if ($supplier) {
+                    $balance_impact = $grand_total - $total_paid_by_user;
+                    $supplier->increment('current_balance', $balance_impact);
+                }
+
+                DB::commit();
+
+                return redirect()->route('purchases.show', $purchase->id)
+                                 ->with('success', 'Invoice created perfectly! Accounts automatically reconciled.');
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                return back()->with('error', 'Something went wrong! ' . $e->getMessage())->withInput();
             }
-
-            DB::commit();
-
-            // store মেথডের শেষে এটি পরিবর্তন করুন:
-            return redirect()->route('purchases.show', $purchase->id)
-                             ->with('success', 'Invoice created successfully.');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            // কোনো এরর হলে আগের পেজেই মেসেজসহ ফেরত পাঠাবে
-            return back()->with('error', 'Something went wrong! ' . $e->getMessage())->withInput();
         }
-    }
 
     // ৫. ইনভয়েসের বিস্তারিত দেখা (Show Invoice)
     public function show(Purchase $purchase)

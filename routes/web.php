@@ -15,6 +15,8 @@ use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\SupplierPaymentController;
 use App\Http\Controllers\PurchaseReturnController;
 use App\Http\Controllers\SupplierLedgerController;
+use App\Http\Controllers\LocationController;
+use App\Http\Controllers\StaffController;
 
 // পাবলিক ইনভয়েস দেখার রাউট
 Route::get('/qrinvoice/{invoice_no}', [PurchaseController::class, 'qrInvoicePreview'])
@@ -92,7 +94,17 @@ Route::resource('supplier-payments', SupplierPaymentController::class);
             });
             Route::get('/supplier-reports/payment-summary', [App\Http\Controllers\SupplierReportController::class, 'paymentReport'])->name('supplier-reports.payment-report');
 
+// Master Setup Routes
+Route::middleware(['auth'])->group(function () {
+    // Location Setup
+    Route::resource('locations', LocationController::class);
 
+    // Staff Setup
+    Route::resource('staffs', StaffController::class);
+});
+
+// Inventory Routes
+Route::get('/inventory/stock', [\App\Http\Controllers\InventoryController::class, 'stockReport'])->name('inventory.stock');
 
 
 

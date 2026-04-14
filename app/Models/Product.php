@@ -52,4 +52,12 @@ class Product extends Model
                     ->withPivot('last_purchase_price')
                     ->withTimestamps();
     }
+/**
+     * Get the inventory stocks for the product.
+     */
+    public function stocks()
+    {
+        return $this->hasMany(\App\Models\InventoryStock::class, 'product_id');
+    }
+
 }

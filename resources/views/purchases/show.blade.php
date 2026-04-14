@@ -326,6 +326,29 @@
                     </tbody>
                 </table>
 
+                @php
+                    // এই ট্রানজেকশনের সময় মোট কত টাকা রিসিভ হয়েছে তা ডাটাবেস থেকে ডাইনামিক বের করা
+                    // যেহেতু সব পেমেন্ট একই সাথে সেভ হয়েছে, তাই created_at সময়টা একই থাকবে
+                    $total_cash_given = \App\Models\SupplierPayment::where('supplier_id', $purchase->supplier_id)
+                        ->where('created_at', $purchase->created_at)
+                        ->sum('amount');
+
+                    // যদি কোনো কারণে created_at একদম সেম না হয়, তাহলে অন্তত current paid_amount দেখাবে
+                    if($total_cash_given == 0) {
+                        $total_cash_given = $purchase->paid_amount;
+                    }
+
+                    // নোট থেকে পেমেন্ট ডিস্ট্রিবিউশন আলাদা করা (যাতে আলাদা বক্সে সুন্দর করে দেখানো যায়)
+                    $general_note = $purchase->note;
+                    $distribution_note = '';
+
+                    if (strpos($general_note, '--- Payment Distribution ---') !== false) {
+                        $parts = explode('--- Payment Distribution ---', $general_note);
+                        $general_note = trim($parts[0]);
+                        $distribution_note = trim($parts[1]);
+                    }
+                @endphp
+
                 <div style="width: 100%; display: table; padding: 0; font-size: 14px;">
                     <div style="display: table-cell; width: 45%; vertical-align: top; padding-right: 15px; padding-top: 10px">
                         <table style="border: 1px solid #000; width: 100%; border-collapse: collapse;" class="c-outstanding-table">
@@ -361,16 +384,39 @@
                                 <td class="nowrap" style="width: 60%; padding: 1px 4px;">Purchase Amount</td>
                                 <td class="nowrap" style="width: 40%; text-align: right; padding: 1px 4px;">{{ number_format($purchase->grand_total ?? 0, 2) }}</td>
                             </tr>
+
                             <tr>
-                                <td class="nowrap" style="padding: 1px 4px;">Collections (Paid)</td>
-                                <td class="nowrap" style="text-align: right; padding: 1px 4px;">{{ number_format($purchase->paid_amount ?? 0, 2) }}</td>
+                                <td class="nowrap" style="padding: 1px 4px; font-weight: bold;">Total Cash Given</td>
+                                <td class="nowrap" style="text-align: right; padding: 1px 4px; font-weight: bold;">{{ number_format($total_cash_given, 2) }}</td>
                             </tr>
                             <tr>
-                                <td class="nowrap" style="border-top: 2px solid #ccc !important; font-weight:bold; padding: 1px 4px;">Net Outstanding (Due)</td>
+                                <td class="nowrap" style="padding: 1px 4px; color: #555;">Applied to this Invoice</td>
+                                <td class="nowrap" style="text-align: right; padding: 1px 4px; color: #555;">{{ number_format($purchase->paid_amount ?? 0, 2) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="nowrap" style="border-top: 2px solid #ccc !important; font-weight:bold; padding: 1px 4px;">Current Invoice Due</td>
                                 <td class="nowrap" style="border-top: 2px solid #ccc !important; text-align: right; font-weight:bold; padding: 1px 4px;">{{ number_format($purchase->due_amount ?? 0, 2) }}</td>
                             </tr>
                             </tbody>
                         </table>
+
+                        {{-- Payment Distribution Details Box (যদি এক্সট্রা পেমেন্ট থাকে তবেই এটি শো করবে) --}}
+                        @if(!empty($distribution_note))
+                            <div style="margin-top: 10px; border: 1px dashed #28a745; padding: 8px; background-color: #f8fff9; border-radius: 4px;">
+                                <strong style="color: #28a745; font-size: 12px; text-transform: uppercase;">Payment Distribution:</strong>
+                                <p style="margin: 5px 0 0 0; font-size: 13px; line-height: 1.5; color: #333;">
+                                    {!! nl2br(e($distribution_note)) !!}
+                                </p>
+                            </div>
+                        @endif
+
+                        {{-- General Note Box (ইউজার যদি বিল করার সময় আলাদা কোনো নোট দিয়ে থাকে) --}}
+                        @if(!empty($general_note))
+                            <div style="margin-top: 10px; font-size: 12px; color: #555;">
+                                <strong>Note:</strong> {{ $general_note }}
+                            </div>
+                        @endif
+
                     </div>
 
                     <div style="display: table-cell; width: 10%;"></div>
