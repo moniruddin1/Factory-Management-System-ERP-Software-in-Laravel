@@ -102,30 +102,42 @@
                                 </thead>
                                 <tbody class="divide-y divide-gray-100 dark:divide-slate-700/50">
                                 @forelse($transactions as $transaction)
+                                    @php
+                                        // সহজ লজিক: কোন কোন টাইপগুলো স্টকে মাল বাড়ায় (IN)
+                                        $inTypes = ['in', 'purchase', 'issue_to_production_in', 'production_return_in', 'finished_good_in'];
+                                        $isIncoming = in_array(strtolower($transaction->transaction_type), $inTypes);
+                                    @endphp
                                     <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/20">
                                         <td class="px-6 py-4">{{ \Carbon\Carbon::parse($transaction->date)->format('d M, Y') }}</td>
                                         <td class="px-6 py-4">
-                                            <span class="font-medium text-gray-900 dark:text-white capitalize">{{ $transaction->reference_type }}</span>
+            <span class="font-medium text-gray-900 dark:text-white capitalize">
+                {{ str_replace('_', ' ', $transaction->reference_type) }}
+            </span>
                                             <p class="text-xs text-gray-500 dark:text-slate-400">#{{ $transaction->reference_id ?? 'N/A' }}</p>
                                         </td>
-                                        <td class="px-6 py-4">{{ optional($transaction->location)->name ?? 'Main Store' }}</td>
                                         <td class="px-6 py-4">
-                                            @if($transaction->transaction_type == 'IN' || strtolower($transaction->transaction_type) == 'purchase')
+            <span class="px-2 py-1 bg-gray-100 dark:bg-slate-800 rounded text-xs">
+                {{ optional($transaction->location)->name ?? 'Main Store' }}
+            </span>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            @if($isIncoming)
                                                 <span class="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 px-2 py-1 rounded text-xs font-medium">IN</span>
                                             @else
                                                 <span class="bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 px-2 py-1 rounded text-xs font-medium">OUT</span>
                                             @endif
+                                            <p class="text-[10px] text-gray-400 mt-1 uppercase">{{ str_replace('_', ' ', $transaction->transaction_type) }}</p>
                                         </td>
 
                                         <td class="px-6 py-4 text-center font-bold text-emerald-600 dark:text-emerald-400">
-                                            {{ ($transaction->transaction_type == 'IN' || strtolower($transaction->transaction_type) == 'purchase') ? number_format($transaction->quantity, 2) : '-' }}
+                                            {{ $isIncoming ? number_format($transaction->quantity, 2) : '-' }}
                                         </td>
 
                                         <td class="px-6 py-4 text-center font-bold text-rose-600 dark:text-rose-400">
-                                            {{ ($transaction->transaction_type == 'OUT' || strtolower($transaction->transaction_type) == 'issue') ? number_format($transaction->quantity, 2) : '-' }}
+                                            {{ !$isIncoming ? number_format($transaction->quantity, 2) : '-' }}
                                         </td>
 
-                                        <td class="px-6 py-4 text-right">৳ {{ number_format($transaction->unit_cost, 2) }}</td>
+                                        <td class="px-6 py-4 text-right font-mono">৳ {{ number_format($transaction->unit_cost, 2) }}</td>
                                     </tr>
                                 @empty
                                     <tr>

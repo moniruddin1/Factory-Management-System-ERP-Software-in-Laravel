@@ -90,28 +90,38 @@
                 <i class="fa-solid fa-chevron-down text-xs transition-transform duration-200" :class="open ? 'rotate-180' : ''"></i>
             </button>
 
-            <div x-show="open" x-cloak class="ml-8 mt-2 space-y-1 border-l-2 border-gray-200 dark:border-slate-700 pl-4">
+            <div x-show="open" x-cloak class="ml-6 mt-2 space-y-1 border-l-2 border-gray-100 dark:border-slate-800 pl-4">
 
+                <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 mt-4">Inventory</div>
 
-                <a href="{{ Route::has('inventory.stock') ? route('inventory.stock') : '#' }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('inventory.stock') ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
-                    Current Stock
-                </a>
-                <a href="{{ Route::has('inventory.ledger') ? route('inventory.ledger') : '#' }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('inventory.ledger') ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
-                    Inventory Ledger
+                <a href="{{ route('inventory.stock') }}" class="flex items-center p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-all {{ request()->routeIs('inventory.stock') ? 'text-green-600 dark:text-green-400 font-bold bg-green-50/50 dark:bg-green-900/10' : 'text-gray-500 dark:text-gray-400' }}">
+                    <i class="fa-solid fa-boxes-stacked mr-2 w-4"></i> Current Stock
                 </a>
 
-                <a href="{{ Route::has('inventory.issue.index') ? route('inventory.issue.index') : '#' }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('inventory.issue.*') ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
-                    Material Issue (Voucher)
+                <a href="{{ route('inventory.ledger') }}" class="flex items-center p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-all {{ request()->routeIs('inventory.ledger') ? 'text-green-600 dark:text-green-400 font-bold bg-green-50/50 dark:bg-green-900/10' : 'text-gray-500 dark:text-gray-400' }}">
+                    <i class="fa-solid fa-book mr-2 w-4"></i> Inventory Ledger
                 </a>
 
-                <a href="{{ Route::has('boms.index') ? route('boms.index') : '#' }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('boms.*') ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
-                    BOM (Shoe Recipe)
+                <a href="{{ route('inventory.issue.index') }}" class="flex items-center p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-all {{ request()->routeIs('inventory.issue.*') ? 'text-green-600 dark:text-green-400 font-bold bg-green-50/50 dark:bg-green-900/10' : 'text-gray-500 dark:text-gray-400' }}">
+                    <i class="fa-solid fa-file-invoice mr-2 w-4"></i> Material Issue
                 </a>
-                <a href="{{ Route::has('productions.index') ? route('productions.index') : '#' }}" class="block p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 {{ request()->routeIs('productions.*') ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
-                    Productions (Mfg)
+
+                <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 mt-4">Manufacturing</div>
+
+                <a href="{{ route('boms.index') }}" class="flex items-center p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-all {{ request()->routeIs('boms.*') ? 'text-green-600 dark:text-green-400 font-bold bg-green-50/50 dark:bg-green-900/10' : 'text-gray-500 dark:text-gray-400' }}">
+                    <i class="fa-solid fa-flask mr-2 w-4"></i> BOM (Shoe Recipe)
+                </a>
+
+                <a href="{{ route('productions.index') }}" class="flex items-center p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-all {{ request()->routeIs('productions.index') || request()->routeIs('productions.create') || request()->routeIs('productions.show') ? 'text-green-600 dark:text-green-400 font-bold bg-green-50/50 dark:bg-green-900/10' : 'text-gray-500 dark:text-gray-400' }}">
+                    <i class="fa-solid fa-industry mr-2 w-4"></i> Production Entry
+                </a>
+
+                <a href="{{ route('productions.analytics') }}" class="flex items-center p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-all {{ request()->routeIs('productions.analytics') ? 'text-green-600 dark:text-green-400 font-bold bg-green-50/50 dark:bg-green-900/10' : 'text-gray-500 dark:text-gray-400' }}">
+                    <i class="fa-solid fa-chart-line mr-2 w-4"></i> Wastage Analytics
                 </a>
 
             </div>
+
         </div>
 
         @if(auth()->user()->can('view-roles') || auth()->user()->can('view-users'))

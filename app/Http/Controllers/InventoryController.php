@@ -71,31 +71,36 @@ class InventoryController extends Controller
 
 // ইস্যু ফর্ম দেখানোর জন্য
     public function issueCreate()
-    {
-        // যে প্রোডাক্টগুলোর স্টক ০ এর বেশি আছে, শুধু সেগুলোই ফর্মে দেখাবে
-        $products = \App\Models\Product::whereHas('stocks', function($q) {
-            $q->where('quantity', '>', 0);
-        })->get();
+        {
+            // ১. BOM (Formula) গুলো ডাটাবেস থেকে আনা
+            $boms = \App\Models\Bom::all();
 
+            // ২. শুধুমাত্র 'Raw Material' এবং যেগুলোর মেইন গোডাউনে (location_id = 1) স্টক আছে সেগুলো আনা
+            $products = \App\Models\Product::where('type', 'raw_material')
+                ->whereHas('stocks', function($q) {
+                    $q->where('quantity', '>', 0)
+                      ->where('location_id', 1); // 1 = Main Godown
+                })->get();
 
+            // ৩. অ্যাকটিভ স্টাফদের ডাটা লোড করা
+            $staffs = \App\Models\Staff::where('is_active', 1)->orderBy('name')->get();
 
-                // অ্যাকটিভ স্টাফদের ডাটা লোড করা
-                $staffs = \App\Models\Staff::where('is_active', 1)->orderBy('name')->get();
-
-                return view('inventory.issue', compact('products', 'staffs'));
-
-
-    }
+            // ৪. boms ভ্যারিয়েবলটি compact এর মাধ্যমে ফর্মে পাঠানো হলো
+            return view('inventory.issue', compact('products', 'staffs', 'boms'));
+        }
 
     // AJAX রিকোয়েস্টের মাধ্যমে নির্দিষ্ট প্রোডাক্টের ব্যাচ/লোকেশন অনুযায়ী স্টক বের করা
-    public function getStockDetails(Request $request)
-    {
-        $stocks = \App\Models\InventoryStock::with('location')
-                    ->where('product_id', $request->product_id)
-                    ->where('quantity', '>', 0)
-                    ->get();
-        return response()->json($stocks);
-    }
+    // AJAX রিকোয়েস্টের মাধ্যমে নির্দিষ্ট প্রোডাক্টের ব্যাচ/লোকেশন অনুযায়ী স্টক বের করা
+        public function getStockDetails(Request $request)
+        {
+            $stocks = \App\Models\InventoryStock::with('location')
+                        ->where('product_id', $request->product_id)
+                        ->where('quantity', '>', 0)
+                        ->where('location_id', 1) // <--- শুধুমাত্র Main Godown (Location 1) এর স্টক দেখাবে
+                        ->get();
+
+            return response()->json($stocks);
+        }
 // ইস্যু ভাউচারগুলোর লিস্ট দেখার জন্য
     public function issueIndex()
     {

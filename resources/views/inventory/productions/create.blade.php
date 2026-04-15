@@ -96,10 +96,10 @@
                             <thead>
                             <tr class="bg-gray-50 dark:bg-slate-800/50 text-gray-500 dark:text-slate-400 text-xs uppercase tracking-wider">
                                 <th class="p-3 border-b border-gray-100 dark:border-slate-700 w-1/4">Raw Material</th>
-                                <th class="p-3 border-b border-gray-100 dark:border-slate-700 w-1/5 text-center bg-blue-50 dark:bg-blue-900/10 text-blue-600 dark:text-blue-400">Issued (WIP)</th>
-                                <th class="p-3 border-b border-gray-100 dark:border-slate-700 w-1/5 text-center bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400">Estimated (BOM)</th>
-                                <th class="p-3 border-b border-gray-100 dark:border-slate-700 w-1/5 text-center">Actual Consumed *</th>
-                                <th class="p-3 border-b border-gray-100 dark:border-slate-700 w-1/5 text-right">Status</th>
+                                <th class="p-3 border-b border-gray-100 dark:border-slate-700 w-1/6 text-center bg-blue-50 dark:bg-blue-900/10 text-blue-600 dark:text-blue-400">Issued (WIP)</th>
+                                <th class="p-3 border-b border-gray-100 dark:border-slate-700 w-1/6 text-center bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400">Estimated (BOM)</th>
+                                <th class="p-3 border-b border-gray-100 dark:border-slate-700 w-1/5 text-center text-indigo-600 dark:text-indigo-400">Actual Consumed *</th>
+                                <th class="p-3 border-b border-gray-100 dark:border-slate-700 w-1/5 text-center text-rose-500 dark:text-rose-400">Return to Godown *</th>
                             </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100 dark:divide-slate-700 text-sm">
@@ -120,23 +120,11 @@
                                     </td>
 
                                     <td class="p-3">
-                                        <input type="number" step="0.01" :name="`items[${index}][actual_qty]`" x-model="mat.actual_qty" required min="0" class="w-full bg-white dark:bg-[#0f172a] text-gray-900 dark:text-white border-gray-300 dark:border-slate-600 rounded-lg text-sm p-2 text-center font-bold">
+                                        <input type="number" step="0.01" :name="`items[${index}][actual_qty]`" x-model="mat.actual_qty" required min="0" class="w-full bg-white dark:bg-[#0f172a] text-gray-900 dark:text-white border-gray-300 dark:border-slate-600 rounded-lg text-sm p-2 text-center font-bold focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
                                     </td>
 
-                                    <td class="p-3 text-right">
-                                        <template x-if="parseFloat(mat.actual_qty) < parseFloat(mat.issued_qty)">
-                                                <span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded dark:bg-emerald-900/30 dark:text-emerald-400" title="Will be returned to Main Godown">
-                                                    Returns: <span x-text="(parseFloat(mat.issued_qty) - parseFloat(mat.actual_qty)).toFixed(2)"></span>
-                                                </span>
-                                        </template>
-                                        <template x-if="parseFloat(mat.actual_qty) > parseFloat(mat.issued_qty)">
-                                                <span class="text-xs bg-rose-100 text-rose-700 px-2 py-1 rounded dark:bg-rose-900/30 dark:text-rose-400" title="Will be deducted from Main Godown (FIFO)">
-                                                    Extra: <span x-text="(parseFloat(mat.actual_qty) - parseFloat(mat.issued_qty)).toFixed(2)"></span>
-                                                </span>
-                                        </template>
-                                        <template x-if="parseFloat(mat.actual_qty) === parseFloat(mat.issued_qty)">
-                                            <span class="text-xs text-gray-400">Exact Match</span>
-                                        </template>
+                                    <td class="p-3">
+                                        <input type="number" step="0.01" :name="`items[${index}][return_qty]`" x-model="mat.return_qty" required min="0" class="w-full bg-white dark:bg-[#0f172a] text-rose-600 dark:text-rose-400 border-rose-300 dark:border-rose-800/50 rounded-lg text-sm p-2 text-center font-bold focus:ring-rose-500 focus:border-rose-500 transition-colors">
                                     </td>
                                 </tr>
                             </template>

@@ -56,210 +56,302 @@ public function index()
         return view('inventory.productions.index', compact('productions'));
     }
     public function store(Request $request)
-    {
-        $request->validate([
-            'production_issue_id' => 'required|exists:production_issues,id',
-            'bom_id' => 'required|exists:boms,id',
-            'target_quantity' => 'required|numeric|min:1',
-            'production_date' => 'required|date',
-            'items' => 'required|array',
-            'items.*.raw_material_id' => 'required|exists:products,id',
-            'items.*.actual_qty' => 'required|numeric|min:0',
-        ]);
-
-        try {
-            DB::beginTransaction();
+        {
+            $request->validate([
+                'production_issue_id' => 'required|exists:production_issues,id',
+                'bom_id' => 'required|exists:boms,id',
+                'target_quantity' => 'required|numeric|min:1',
+                'production_date' => 'required|date',
+                'items' => 'required|array',
+                'items.*.raw_material_id' => 'required|exists:products,id',
+                'items.*.actual_qty' => 'required|numeric|min:0',
+                'items.*.return_qty' => 'required|numeric|min:0', // <--- NEW VALIDATION
+            ]);
 
             $bom = Bom::findOrFail($request->bom_id);
             $finishedProduct = Product::findOrFail($bom->finished_product_id);
             $issue = ProductionIssue::findOrFail($request->production_issue_id);
+            $staffId = $issue->issued_to;
+            $currentIssueId = (int) $issue->id;
 
-            // রেফারেন্স নম্বর তৈরি
-            $latestProduction = Production::latest('id')->first();
-            $nextId = $latestProduction ? $latestProduction->id + 1 : 1;
-            $referenceNo = 'PRD-' . date('Ym') . '-' . str_pad($nextId, 4, '0', STR_PAD_LEFT);
-
-            $totalCost = 0;
-            $productionItems = [];
-            $nextId = Production::max('id') + 1;
-            $batchNo = 'BATCH-' . date('Ym') . '-' . str_pad($nextId, 3, '0', STR_PAD_LEFT);
-            // ১. মেইন প্রডাকশন রেকর্ড তৈরি
-            $production = Production::create([
-                'reference_no' => $referenceNo,
-                'batch_no' => $batchNo,
-                'production_issue_id' => $issue->id,
-                'bom_id' => $bom->id,
-                'finished_product_id' => $finishedProduct->id,
-                'target_quantity' => $request->target_quantity,
-                'production_date' => $request->production_date,
-                'total_cost' => 0,
-                'unit_cost' => 0,
-                'notes' => $request->notes,
-                'created_by' => Auth::id(),
-            ]);
-
-            // ২. লজিক: ইস্যু করা আইটেম এবং আসল খরচের হিসাব
+            // ==========================================
+            // STEP 1: PRE-VALIDATION (STAFF WIP CHECK)
+            // ==========================================
             foreach ($request->items as $item) {
                 $rawMaterialId = $item['raw_material_id'];
-                $actualQty = $item['actual_qty'];
-                $estimatedQty = $item['estimated_qty'] ?? 0;
+                $actualQty = (float) $item['actual_qty'];
+                $returnQty = (float) $item['return_qty']; // <--- GET RETURN QTY
+                $totalClaimedQty = $actualQty + $returnQty; // <--- TOTAL DEDUCTION FROM WIP
 
-                // এই আইটেমটি ভাউচারে কতটুকু ইস্যু করা হয়েছিল তা বের করা
-                $issuedItems = $issue->items()->where('product_id', $rawMaterialId)->get();
-                $totalIssuedQty = $issuedItems->sum('quantity');
+                $totalIssuedToStaff = (float) DB::table('production_issues')
+                    ->join('production_issue_items', 'production_issues.id', '=', 'production_issue_items.production_issue_id')
+                    ->where('production_issues.issued_to', $staffId)
+                    ->where('production_issue_items.product_id', $rawMaterialId)
+                    ->sum('production_issue_items.quantity');
 
-                $unitCost = $issuedItems->first()->unit_cost ?? (Product::find($rawMaterialId)->purchase_price ?? 0);
-                $subtotalCost = $actualQty * $unitCost;
-                $totalCost += $subtotalCost;
+                $totalConsumedByStaff = (float) DB::table('productions')
+                    ->join('production_items', 'productions.id', '=', 'production_items.production_id')
+                    ->join('production_issues', 'productions.production_issue_id', '=', 'production_issues.id')
+                    ->where('production_issues.issued_to', $staffId)
+                    ->where('production_items.raw_material_id', $rawMaterialId)
+                    ->sum('production_items.actual_qty');
 
-                $productionItems[] = [
-                    'production_id' => $production->id,
-                    'raw_material_id' => $rawMaterialId,
-                    'estimated_qty' => $estimatedQty,
-                    'actual_qty' => $actualQty,
-                    'unit_cost' => $unitCost,
-                    'subtotal_cost' => $subtotalCost,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
+                $totalReturnedByStaff = (float) DB::table('inventory_transactions')
+                    ->join('productions', 'inventory_transactions.reference_id', '=', 'productions.id')
+                    ->join('production_issues', 'productions.production_issue_id', '=', 'production_issues.id')
+                    ->where('inventory_transactions.reference_type', 'Production Return')
+                    ->where('inventory_transactions.transaction_type', 'production_return_in')
+                    ->where('production_issues.issued_to', $staffId)
+                    ->where('inventory_transactions.product_id', $rawMaterialId)
+                    ->sum('inventory_transactions.quantity');
 
-                // **********************************************
-                // আপনার অসাধারণ ইনভেন্টরি লজিক ইমপ্লিমেন্টেশন
-                // **********************************************
+                $availableStaffWip = $totalIssuedToStaff - $totalConsumedByStaff - $totalReturnedByStaff;
 
-                // ক) Location 2 (Production Floor/WIP) থেকে মাল কমানো
-                $wipStock = InventoryStock::where('product_id', $rawMaterialId)
-                                          ->where('location_id', 2)
-                                          ->first();
-
-                if ($wipStock) {
-                    $deductFromWip = min($actualQty, $totalIssuedQty);
-                    $wipStock->decrement('quantity', $deductFromWip);
-
-                    InventoryTransaction::create([
-                        'date' => $request->production_date,
-                        'product_id' => $rawMaterialId,
-                        'location_id' => 2,
-                        'transaction_type' => 'production_consume',
-                        'reference_type' => 'Production',
-                        'reference_id' => $production->id,
-                        'quantity' => $deductFromWip,
-                        'unit_cost' => $unitCost,
-                        'created_by' => Auth::id(),
-                    ]);
+                // Check if consumed + returned is greater than what staff actually has
+                if (round($totalClaimedQty, 2) > round($availableStaffWip, 2)) {
+                    $productName = Product::find($rawMaterialId)->name ?? 'Unknown Material';
+                    return back()->withInput()->withErrors(['error' => "Shortage! '{$productName}' available with staff is {$availableStaffWip}, but you entered {$actualQty} (Consumed) + {$returnQty} (Return). Not enough WIP stock."]);
                 }
+            }
 
-                // খ) যদি মাল কম লাগে (Savings), তবে বেঁচে যাওয়া মাল Location 1 (Main Godown)-এ ফেরত যাবে
-                if ($actualQty < $totalIssuedQty) {
-                    $returnQty = $totalIssuedQty - $actualQty;
+            // ==========================================
+            // STEP 2: SAVE PRODUCTION
+            // ==========================================
+            try {
+                DB::beginTransaction();
 
-                    // Main Godown এ যোগ করা
-                    $mainStock = InventoryStock::firstOrCreate(
-                        ['product_id' => $rawMaterialId, 'location_id' => 1],
-                        ['quantity' => 0]
-                    );
-                    $mainStock->increment('quantity', $returnQty);
+                $latestProduction = Production::latest('id')->first();
+                $nextId = $latestProduction ? $latestProduction->id + 1 : 1;
+                $referenceNo = 'PRD-' . date('Ym') . '-' . str_pad($nextId, 4, '0', STR_PAD_LEFT);
+                $batchNo = 'BATCH-' . date('Ym') . '-' . str_pad($nextId, 3, '0', STR_PAD_LEFT);
 
-                    // লেজার এন্ট্রি (Return)
-                    InventoryTransaction::create([
-                        'date' => $request->production_date,
-                        'product_id' => $rawMaterialId,
-                        'location_id' => 1,
-                        'transaction_type' => 'production_return_in',
-                        'reference_type' => 'Production Return',
-                        'reference_id' => $production->id,
-                        'quantity' => $returnQty,
-                        'unit_cost' => $unitCost,
-                        'created_by' => Auth::id(),
-                    ]);
-                }
+                $production = Production::create([
+                    'reference_no' => $referenceNo,
+                    'batch_no' => $batchNo,
+                    'production_issue_id' => $issue->id,
+                    'bom_id' => $bom->id,
+                    'finished_product_id' => $finishedProduct->id,
+                    'target_quantity' => $request->target_quantity,
+                    'production_date' => $request->production_date,
+                    'total_cost' => 0,
+                    'unit_cost' => 0,
+                    'notes' => $request->notes,
+                    'created_by' => Auth::id(),
+                ]);
 
-                // গ) যদি মাল বেশি লাগে (Extra Usage), তবে Location 1 (Main Godown) থেকে FIFO সিস্টেমে কাটবে
-                if ($actualQty > $totalIssuedQty) {
-                    $extraNeeded = $actualQty - $totalIssuedQty;
+                $totalCost = 0;
 
-                    // FIFO লজিক: Main Godown (1) এর পুরোনো স্টক আগে ব্যবহার হবে
-                    $availableStocks = InventoryStock::where('product_id', $rawMaterialId)
-                                                     ->where('location_id', 1)
-                                                     ->where('quantity', '>', 0)
-                                                     ->orderBy('created_at', 'asc') // First In
-                                                     ->lockForUpdate()
-                                                     ->get();
+                foreach ($request->items as $item) {
+                    $rawMaterialId = $item['raw_material_id'];
+                    $requiredQty = (float) $item['actual_qty'];
+                    $returnQty = (float) $item['return_qty']; // <--- GET MANUAL RETURN QTY
 
-                    foreach ($availableStocks as $stockLine) {
-                        if ($extraNeeded <= 0) break;
+                    // ১. Base Unit Cost বের করা (ফলব্যাক হিসেবে)
+                    $productModel = Product::find($rawMaterialId);
+                    $baseUnitCost = (float) ($productModel->purchase_price ?? 0);
+                    if ($baseUnitCost <= 0) {
+                        $lastTx = DB::table('inventory_transactions')
+                            ->where('product_id', $rawMaterialId)
+                            ->where('unit_cost', '>', 0)
+                            ->latest('date')
+                            ->first();
+                        $baseUnitCost = $lastTx ? (float) $lastTx->unit_cost : 0;
+                    }
 
-                        $qtyToDeduct = min($stockLine->quantity, $extraNeeded);
-                        $stockLine->decrement('quantity', $qtyToDeduct);
-                        $extraNeeded -= $qtyToDeduct;
+                    $remainingToConsume = $requiredQty;
+                    $materialSubtotal = 0;
+
+                    // ২. WIP (Location 2) থেকে মাল মাইনাস করা এবং কস্ট ক্যালকুলেট করা (Actual Consume এর জন্য)
+                    if ($requiredQty > 0) {
+                        $wipStocks = InventoryStock::where('product_id', $rawMaterialId)
+                            ->where('location_id', 2)
+                            ->where('quantity', '>', 0)
+                            ->orderBy('created_at', 'asc')
+                            ->get();
+
+                        foreach ($wipStocks as $wStock) {
+                            if ($remainingToConsume <= 0) break;
+
+                            $consumeQty = min((float) $wStock->quantity, $remainingToConsume);
+
+                            // এই ব্যাচের আসল দাম বের করার চেষ্টা
+                            $issueItem = DB::table('production_issue_items as pii')
+                                ->join('production_issues as pi', 'pii.production_issue_id', '=', 'pi.id')
+                                ->where('pi.issued_to', $staffId)
+                                ->where('pii.product_id', $rawMaterialId)
+                                ->whereIn('pii.stock_id', function($q) use ($wStock) {
+                                    $q->select('id')->from('inventory_stocks')->where('batch_no', $wStock->batch_no);
+                                })
+                                ->first();
+
+                            $unitCost = $issueItem ? (float) $issueItem->unit_cost : $baseUnitCost;
+                            if ($unitCost <= 0) $unitCost = $baseUnitCost;
+
+                            $materialSubtotal += ($consumeQty * $unitCost);
+                            $remainingToConsume -= $consumeQty;
+
+                            $wStock->decrement('quantity', $consumeQty);
+
+                            InventoryTransaction::create([
+                                'date' => $request->production_date,
+                                'product_id' => $rawMaterialId,
+                                'location_id' => 2,
+                                'transaction_type' => 'production_consume',
+                                'reference_type' => 'Production',
+                                'reference_id' => $production->id,
+                                'quantity' => $consumeQty,
+                                'unit_cost' => $unitCost,
+                                'created_by' => Auth::id(),
+                            ]);
+                        }
+
+                        // Force Consume if WIP stock mismatch
+                        if ($remainingToConsume > 0) {
+                            $materialSubtotal += ($remainingToConsume * $baseUnitCost);
+
+                            $genericWip = InventoryStock::firstOrCreate(
+                                ['product_id' => $rawMaterialId, 'location_id' => 2, 'batch_no' => null],
+                                ['quantity' => 0]
+                            );
+                            $genericWip->decrement('quantity', $remainingToConsume);
+
+                            InventoryTransaction::create([
+                                'date' => $request->production_date,
+                                'product_id' => $rawMaterialId,
+                                'location_id' => 2,
+                                'transaction_type' => 'production_consume',
+                                'reference_type' => 'Production',
+                                'reference_id' => $production->id,
+                                'quantity' => $remainingToConsume,
+                                'unit_cost' => $baseUnitCost,
+                                'created_by' => Auth::id(),
+                            ]);
+                        }
+                    }
+
+                    // ৩. রিটার্ন (Savings) লজিক - ম্যানুয়াল ইনপুটের উপর ভিত্তি করে (অটো বাদ)
+                    if ($returnQty > 0) {
+                        // বর্তমান ইস্যু ভাউচার থেকে ব্যাচ এবং কস্ট বের করা
+                        $currentIssueItem = DB::table('production_issue_items')
+                            ->where('production_issue_id', $currentIssueId)
+                            ->where('product_id', $rawMaterialId)
+                            ->first();
+
+                        $returnBatchNo = null;
+                        $returnUnitCost = $baseUnitCost;
+
+                        if ($currentIssueItem) {
+                            $returnUnitCost = (float) $currentIssueItem->unit_cost > 0 ? (float) $currentIssueItem->unit_cost : $baseUnitCost;
+                            $stockRef = DB::table('inventory_stocks')->where('id', $currentIssueItem->stock_id)->first();
+                            if ($stockRef) $returnBatchNo = $stockRef->batch_no;
+                        }
+
+                        // মেইন গোডাউনে (Location 1) ফেরত পাঠানো
+                        $mainStock = InventoryStock::firstOrCreate(
+                            ['product_id' => $rawMaterialId, 'location_id' => 1, 'batch_no' => $returnBatchNo],
+                            ['quantity' => 0]
+                        );
+                        $mainStock->increment('quantity', $returnQty);
+
+                        // WIP থেকে রিমুভ করা
+                        $wipStockToReduce = InventoryStock::where('product_id', $rawMaterialId)
+                            ->where('location_id', 2)
+                            ->where('quantity', '>=', $returnQty) // Try to find sufficient stock
+                            ->first();
+
+                        if ($wipStockToReduce) {
+                            $wipStockToReduce->decrement('quantity', $returnQty);
+                        } else {
+                            // Fallback generic WIP reduction
+                            $fallbackWip = InventoryStock::firstOrCreate(
+                                ['product_id' => $rawMaterialId, 'location_id' => 2, 'batch_no' => null],
+                                ['quantity' => 0]
+                            );
+                            $fallbackWip->decrement('quantity', $returnQty);
+                        }
 
                         InventoryTransaction::create([
                             'date' => $request->production_date,
                             'product_id' => $rawMaterialId,
                             'location_id' => 1,
-                            'transaction_type' => 'extra_material_issue',
-                            'reference_type' => 'Production Extra',
+                            'transaction_type' => 'production_return_in',
+                            'reference_type' => 'Production Return',
                             'reference_id' => $production->id,
-                            'quantity' => $qtyToDeduct,
-                            'unit_cost' => $unitCost,
+                            'quantity' => $returnQty,
+                            'unit_cost' => $returnUnitCost,
                             'created_by' => Auth::id(),
                         ]);
                     }
+
+                    // ৪. Production Items Table এন্ট্রি (কস্ট সহ)
+                    $avgUnitCost = $requiredQty > 0 ? (float) ($materialSubtotal / $requiredQty) : 0;
+
+                    ProductionItem::create([
+                        'production_id' => $production->id,
+                        'raw_material_id' => $rawMaterialId,
+                        'estimated_qty' => $item['estimated_qty'] ?? 0,
+                        'actual_qty' => $requiredQty,
+                        'unit_cost' => $avgUnitCost,
+                        'subtotal_cost' => $materialSubtotal,
+                    ]);
+
+                    $totalCost += $materialSubtotal;
                 }
+
+                // প্রোডাকশন আপডেট (Costing Update)
+                $production->update([
+                    'total_cost' => $totalCost,
+                    'unit_cost' => $request->target_quantity > 0 ? (float) ($totalCost / $request->target_quantity) : 0,
+                ]);
+
+                // ঘ) ফিনিশড জুতো Location 3 (Ready Products) এ যোগ করা
+                $finishedStock = InventoryStock::firstOrCreate(
+                    ['product_id' => $finishedProduct->id, 'location_id' => 3, 'batch_no' => $batchNo],
+                    ['quantity' => 0]
+                );
+                $finishedStock->increment('quantity', $request->target_quantity);
+
+                InventoryTransaction::create([
+                    'date' => $request->production_date,
+                    'product_id' => $finishedProduct->id,
+                    'location_id' => 3,
+                    'transaction_type' => 'finished_good_in',
+                    'reference_type' => 'Production Final',
+                    'reference_id' => $production->id,
+                    'quantity' => $request->target_quantity,
+                    'unit_cost' => $production->unit_cost,
+                    'created_by' => Auth::id(),
+                ]);
+
+                DB::commit();
+                return redirect()->route('productions.index')->with('success', 'Production entry successful! Costs & Stocks are perfectly mapped.');
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                return back()->withInput()->withErrors(['error' => 'Error: ' . $e->getMessage()]);
             }
-
-            ProductionItem::insert($productionItems);
-
-            $production->update([
-                'total_cost' => $totalCost,
-                'unit_cost' => $totalCost / $request->target_quantity,
-            ]);
-
-            // ঘ) ফিনিশড জুতো Location 3 (Ready Products) এ যোগ করা
-            $finishedStock = InventoryStock::firstOrCreate(
-                ['product_id' => $finishedProduct->id, 'location_id' => 3],
-                ['quantity' => 0]
-            );
-            $finishedStock->increment('quantity', $request->target_quantity);
-
-            InventoryTransaction::create([
-                'date' => $request->production_date,
-                'product_id' => $finishedProduct->id,
-                'location_id' => 3,
-                'transaction_type' => 'finished_good_in',
-                'reference_type' => 'Production Final',
-                'reference_id' => $production->id,
-                'quantity' => $request->target_quantity,
-                'unit_cost' => $production->unit_cost,
-                'created_by' => Auth::id(),
-            ]);
-
-            DB::commit();
-            return redirect()->route('productions.index')->with('success', 'Production entry successful! Stocks (WIP, Returns & Main) reconciled accurately.');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->withInput()->withErrors(['error' => 'Error: ' . $e->getMessage()]);
         }
+    public function analytics()
+    {
+        // Eager load issue and production items
+        $productions = Production::with(['items', 'issue', 'finishedProduct'])->get();
+
+        // স্টাফদের নাম এবং আইডি নিয়ে আসা
+        $staffs = \App\Models\Staff::pluck('name', 'id');
+
+        $totalWastageCost = 0;
+        $totalSavingsCost = 0;
+
+        foreach($productions as $prd) {
+            $variance = $prd->material_variance;
+            if($variance > 0) $totalWastageCost += $variance;
+            else $totalSavingsCost += abs($variance);
+        }
+
+        $topWastageBatches = $productions->sortByDesc(function($prd) {
+            return $prd->material_variance;
+        })->take(20); // এখন ৫টির বদলে ১০টি দেখালে অ্যানালাইসিস ভালো হবে
+
+        return view('inventory.productions.analytics', compact('totalWastageCost', 'totalSavingsCost', 'topWastageBatches', 'staffs'));
     }
-public function analytics()
-{
-    $productions = Production::with('items')->get();
-
-    $totalWastageCost = 0;
-    $totalSavingsCost = 0;
-
-    foreach($productions as $prd) {
-        $variance = $prd->material_variance;
-        if($variance > 0) $totalWastageCost += $variance;
-        else $totalSavingsCost += abs($variance);
-    }
-
-    // টপ ৫টি ওয়েস্টেজ হওয়া ব্যাচ
-    $topWastageBatches = $productions->sortByDesc(function($prd) {
-        return $prd->material_variance;
-    })->take(5);
-
-    return view('inventory.productions.analytics', compact('totalWastageCost', 'totalSavingsCost', 'topWastageBatches'));
-}
 }
