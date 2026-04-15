@@ -12,18 +12,10 @@ class Product extends Model
     use HasFactory, LogsActivity;
 
     protected $fillable = [
-        'name',
-        'code',
-        'type',
-        'category_id',
-        'unit_id',
-        'purchase_price',
-        'selling_price',
-        'alert_quantity',
-        'image',
-        'description',
-        'is_active',
-    ];
+            'name', 'code', 'type', 'category_id', 'unit_id',
+            'purchase_price', 'selling_price', 'wholesale_price', 'retail_price', // <--- নতুন ফিল্ডগুলো
+            'alert_quantity', 'image', 'description', 'is_active'
+        ];
 
     // Relations
     public function category()

@@ -75,7 +75,7 @@
                         <th class="py-3 px-4 text-center w-16 print:border print:border-gray-800">Image</th>
                         <th class="py-3 px-4 print:border print:border-gray-800">Product Info</th>
                         <th class="py-3 px-4 print:border print:border-gray-800">Category & Unit</th>
-                        <th class="py-3 px-4 print:border print:border-gray-800">Est. Pricing</th>
+
                         <th class="py-3 px-4 text-center print:border print:border-gray-800">Alert Qty</th>
                         <th class="py-3 px-4 text-center print:hidden">Action</th>
                     </tr>
@@ -108,12 +108,7 @@
                                 <div class="text-xs text-gray-400 print:text-gray-600">{{ $product->unit->name ?? 'N/A' }} ({{ $product->unit->short_name ?? '' }})</div>
                             </td>
 
-                            <td class="py-3 px-4 text-gray-600 dark:text-gray-300 print:border print:border-gray-800 print:text-black">
-                                <div>Buy: ৳{{ number_format($product->purchase_price, 2) }}</div>
-                                @if($product->type == 'finished_good')
-                                    <div class="text-xs text-emerald-500 font-medium mt-0.5 print:text-black">Sell: ৳{{ number_format($product->selling_price, 2) }}</div>
-                                @endif
-                            </td>
+
 
                             <td class="py-3 px-4 text-center font-semibold text-rose-500 print:border print:border-gray-800 print:text-black">
                                 {{ $product->alert_quantity }}
@@ -184,14 +179,7 @@
                                                         @endforeach
                                                     </select>
                                                 </div>
-                                                <div>
-                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Est. Purchase Price</label>
-                                                    <input type="number" step="0.01" name="purchase_price" value="{{ $product->purchase_price }}" class="w-full rounded-lg border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-blue-500 focus:border-blue-500 text-sm">
-                                                </div>
-                                                <div>
-                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Selling Price (For FG)</label>
-                                                    <input type="number" step="0.01" name="selling_price" value="{{ $product->selling_price }}" class="w-full rounded-lg border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-blue-500 focus:border-blue-500 text-sm">
-                                                </div>
+
                                                 <div>
                                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Alert Quantity</label>
                                                     <input type="number" name="alert_quantity" value="{{ $product->alert_quantity }}" class="w-full rounded-lg border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-blue-500 focus:border-blue-500 text-sm">
@@ -285,14 +273,7 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Est. Purchase Price</label>
-                                <input type="number" step="0.01" name="purchase_price" value="0" class="w-full rounded-lg border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-blue-500 focus:border-blue-500 text-sm">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Selling Price (For FG)</label>
-                                <input type="number" step="0.01" name="selling_price" value="0" class="w-full rounded-lg border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-blue-500 focus:border-blue-500 text-sm">
-                            </div>
+
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Alert Quantity</label>
                                 <input type="number" name="alert_quantity" value="0" class="w-full rounded-lg border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-blue-500 focus:border-blue-500 text-sm">

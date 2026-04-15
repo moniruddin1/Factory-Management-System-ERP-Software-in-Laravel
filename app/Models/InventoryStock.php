@@ -14,8 +14,19 @@ class InventoryStock extends Model
         'location_id',
         'batch_no',
         'quantity',
+        'unit_cost', // <--- Eta must thakte hobe
+        'wholesale_price', // <--- Eta must thakte hobe
+        'retail_price', // <--- Eta must thakte hobe
+        'created_by'
     ];
 
+
+public function production()
+{
+    // ব্যাচ নম্বর এবং প্রোডাক্ট আইডি দিয়ে প্রোডাকশন খুঁজে বের করা
+    return $this->hasOne(Production::class, 'batch_no', 'batch_no')
+                ->where('finished_product_id', $this->product_id);
+}
     public function product()
     {
         return $this->belongsTo(Product::class);

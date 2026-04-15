@@ -10,10 +10,11 @@ class Production extends Model
     use HasFactory;
 
     protected $fillable = [
-        'reference_no', 'batch_no', 'production_issue_id', 'bom_id', 'finished_product_id',
-        'target_quantity', 'production_date', 'total_cost', 'unit_cost',
-        'notes', 'created_by'
-    ];
+            'reference_no', 'batch_no', 'production_issue_id', 'bom_id', 'finished_product_id',
+            'target_quantity', 'production_date', 'total_cost', 'unit_cost',
+            'total_material_cost', 'labor_cost', 'overhead_cost', 'final_total_cost', // <--- নতুন ফিল্ডগুলো
+            'notes', 'created_by'
+        ];
 
     public function bom()
     {

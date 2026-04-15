@@ -17,6 +17,7 @@
                             <option value="raw_material_store">Raw Material Store (Main Godown)</option>
                             <option value="production_floor">Production Floor (WIP)</option>
                             <option value="finished_good_store">Finished Goods Store</option>
+                            <option value="store">Store</option>
                         </select>
                     </div>
 

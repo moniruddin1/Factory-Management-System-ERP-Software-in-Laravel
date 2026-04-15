@@ -137,7 +137,12 @@ Route::get('productions/get-issue/{id}', [ProductionController::class, 'getIssue
 // ৩. রিসোর্স রাউটটি সবার শেষে একবারই থাকবে
 Route::resource('productions', ProductionController::class);
 
-
+Route::get('/inventory/ready-products', [\App\Http\Controllers\InventoryController::class, 'readyProducts'])->name('inventory.ready_products');
+Route::post('/inventory/transfer-to-store', [\App\Http\Controllers\InventoryController::class, 'transferToStore'])->name('inventory.transfer_to_store');
+Route::get('/inventory/store-stock', [\App\Http\Controllers\InventoryController::class, 'storeStock'])->name('inventory.store_stock');
+// এই দুইটা ঠিক করা হয়েছে
+Route::get('/inventory/production-stock', [\App\Http\Controllers\InventoryController::class, 'productionInventory'])->name('inventory.production_stock');
+Route::get('/inventory/production-stock/{product_id}', [\App\Http\Controllers\InventoryController::class, 'productionItemDetails'])->name('inventory.production_item_details');
 
 
 

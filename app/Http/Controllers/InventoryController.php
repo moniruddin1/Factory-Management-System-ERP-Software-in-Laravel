@@ -220,8 +220,167 @@ class InventoryController extends Controller
                 return back()->with('error', $e->getMessage());
             }
         }
+    // Ready Production (Location 3) এর স্টক দেখানো
+        public function readyProducts()
+        {
+            $stocks = \App\Models\InventoryStock::with(['product.category', 'product.unit', 'production']) // production যোগ করুন
+                        ->where('location_id', 3)
+                        ->where('quantity', '>', 0)
+                        ->orderBy('created_at', 'desc')
+                        ->get();
+
+            return view('inventory.ready_products', compact('stocks'));
+        }
 
 
 
 
+        // Location 3 (Ready Production) থেকে Location 4 (Store) এ পাঠানো এবং Price Set করা
+        public function transferToStore(Request $request)
+        {
+            $request->validate([
+                'stock_id' => 'required|exists:inventory_stocks,id',
+                'transfer_qty' => 'required|numeric|min:0.01',
+                'wholesale_price' => 'required|numeric|min:0',
+                'retail_price' => 'required|numeric|min:0',
+            ]);
+
+            DB::beginTransaction();
+            try {
+                $storeLocationId = 4;
+                $sourceStock = \App\Models\InventoryStock::lockForUpdate()->findOrFail($request->stock_id);
+
+                if ($request->transfer_qty > $sourceStock->quantity) {
+                    throw new \Exception('Transfer quantity cannot be greater than available stock!');
+                }
+
+                // কস্ট বের করা
+                $prodData = \App\Models\Production::where('batch_no', $sourceStock->batch_no)->first();
+                $unitCost = $prodData ? (float) $prodData->unit_cost : ($sourceStock->unit_cost ?? 0);
+
+                // ১. সোর্স থেকে কমানো
+                $sourceStock->decrement('quantity', $request->transfer_qty);
+
+                // ২. ডেস্টিনেশন (Location 4) এ আপডেট
+                $storeStock = \App\Models\InventoryStock::updateOrCreate(
+                    [
+                        'product_id' => $sourceStock->product_id,
+                        'location_id' => $storeLocationId,
+                        'batch_no' => $sourceStock->batch_no
+                    ],
+                    [
+                        'unit_cost' => $unitCost,
+                        'wholesale_price' => $request->wholesale_price,
+                        'retail_price' => $request->retail_price,
+                        'created_by' => auth()->id(),
+                    ]
+                );
+
+                // আলাদা করে ইনক্রিমেন্ট করা যাতে আগের পরিমাণের সাথে যোগ হয়
+                $storeStock->increment('quantity', $request->transfer_qty);
+
+                // ট্রানজেকশন রেকর্ড (আপনার আগের কোড অনুযায়ী থাকবে)
+                \App\Models\InventoryTransaction::create([
+                    'date' => now()->format('Y-m-d'),
+                    'product_id' => $sourceStock->product_id,
+                    'location_id' => 3,
+                    'batch_no' => $sourceStock->batch_no,
+                    'transaction_type' => 'transfer_out',
+                    'reference_type' => 'Store Transfer',
+                    'reference_id' => $sourceStock->id,
+                    'quantity' => $request->transfer_qty,
+                    'unit_cost' => $unitCost,
+                    'created_by' => auth()->id(),
+                ]);
+
+                \App\Models\InventoryTransaction::create([
+                    'date' => now()->format('Y-m-d'),
+                    'product_id' => $sourceStock->product_id,
+                    'location_id' => $storeLocationId,
+                    'batch_no' => $sourceStock->batch_no,
+                    'transaction_type' => 'transfer_in',
+                    'reference_type' => 'Store Transfer',
+                    'reference_id' => $storeStock->id,
+                    'quantity' => $request->transfer_qty,
+                    'unit_cost' => $unitCost,
+                    'created_by' => auth()->id(),
+                ]);
+
+                DB::commit();
+                return back()->with('success', 'Transfer and Pricing updated successfully!');
+
+            } catch (\Exception $e) {
+                DB::rollback();
+                return back()->with('error', 'Error: ' . $e->getMessage());
+            }
+        }
+    //Store stock data
+    public function storeStock(Request $request)
+    {
+        $query = \App\Models\InventoryStock::with(['product.category', 'product.unit'])
+                    ->where('location_id', 4) // Sudhu Main Store
+                    ->where('quantity', '>', 0); // Sudhu stock-e ache emon gulo
+
+        // Product Name search
+        if ($request->filled('search')) {
+            $query->whereHas('product', function($q) use ($request) {
+                $q->where('name', 'like', '%' . $request->search . '%');
+            });
+        }
+
+        // Category filter
+        if ($request->filled('category_id')) {
+            $query->whereHas('product', function($q) use ($request) {
+                $q->where('category_id', $request->category_id);
+            });
+        }
+
+        $stocks = $query->latest()->paginate(15);
+        $categories = \App\Models\Category::all();
+
+        return view('inventory.store_stock', compact('stocks', 'categories'));
     }
+
+// ১. মেইন সামারি টেবিল: প্রোডাকশন ফ্লোরে (Location 2) কোন আইটেম মোট কতটুকু আছে
+    public function productionInventory(Request $request)
+    {
+        $summaryStocks = InventoryStock::with(['product.category', 'product.unit'])
+            ->where('location_id', 2) // নিশ্চিতভাবে প্রোডাকশন লোকেশন
+            ->select('product_id', DB::raw('SUM(quantity) as total_qty'))
+            ->groupBy('product_id')
+            ->having('total_qty', '>', 0)
+            ->get();
+
+        return view('inventory.production_stock', compact('summaryStocks'));
+    }
+
+    // ২. স্টাফ অনুযায়ী নির্দিষ্ট আইটেমের ডিটেইল ব্রেকডাউন
+    public function productionItemDetails($product_id)
+    {
+        $product = Product::with('unit')->findOrFail($product_id);
+
+        // স্টাফদের কাছে কোন ব্যাচের মাল কতটুকু আছে তা বের করা
+        $staffStocks = DB::table('inventory_stocks as s')
+            ->join('production_issue_items as pii', 's.id', '=', 'pii.stock_id')
+            ->join('production_issues as pi', 'pii.production_issue_id', '=', 'pi.id')
+            ->join('staffs', 'pi.issued_to', '=', 'staffs.id')
+            ->where('s.product_id', $product_id)
+            ->where('s.location_id', 2) // শুধুমাত্র প্রোডাকশন লোকেশন ২ এর ডাটা
+            ->where('s.quantity', '>', 0)
+            ->select(
+                'staffs.name as staff_name',
+                's.batch_no',
+                's.quantity',
+                'pi.date as issue_date',      // আপনার DB কলাম অনুযায়ী
+                'pi.voucher_no as issue_ref'  // আপনার DB কলাম অনুযায়ী
+            )
+            ->get();
+
+        return view('inventory.production_item_details', compact('product', 'staffStocks'));
+    }
+}
+
+
+
+
+

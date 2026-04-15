@@ -119,6 +119,9 @@
                 <a href="{{ route('productions.analytics') }}" class="flex items-center p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-all {{ request()->routeIs('productions.analytics') ? 'text-green-600 dark:text-green-400 font-bold bg-green-50/50 dark:bg-green-900/10' : 'text-gray-500 dark:text-gray-400' }}">
                     <i class="fa-solid fa-chart-line mr-2 w-4"></i> Wastage Analytics
                 </a>
+                <a href="{{ route('inventory.ready_products') }}" class="flex items-center p-2 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-all {{ request()->routeIs('inventory.ready_products') ? 'text-green-600 dark:text-green-400 font-bold bg-green-50/50 dark:bg-green-900/10' : 'text-gray-500 dark:text-gray-400' }}">
+                    <i class="fa-solid fa-chart-line mr-2 w-4"></i> Ready Production
+                </a>
 
             </div>
 

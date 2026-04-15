@@ -66,6 +66,8 @@ public function index()
                 'items.*.raw_material_id' => 'required|exists:products,id',
                 'items.*.actual_qty' => 'required|numeric|min:0',
                 'items.*.return_qty' => 'required|numeric|min:0', // <--- NEW VALIDATION
+                'labor_cost' => 'nullable|numeric|min:0',
+                            'overhead_cost' => 'nullable|numeric|min:0',
             ]);
 
             $bom = Bom::findOrFail($request->bom_id);
@@ -137,6 +139,14 @@ public function index()
                     'unit_cost' => 0,
                     'notes' => $request->notes,
                     'created_by' => Auth::id(),
+
+                                'total_material_cost' => 0,
+                                'labor_cost' => $request->labor_cost ?? 0,
+                                'overhead_cost' => $request->overhead_cost ?? 0,
+                                'final_total_cost' => 0,
+                                'unit_cost' => 0,
+                                'notes' => $request->notes,
+                                'created_by' => Auth::id(),
                 ]);
 
                 $totalCost = 0;
@@ -297,31 +307,60 @@ public function index()
 
                     $totalCost += $materialSubtotal;
                 }
+                $laborCost = (float) ($request->labor_cost ?? 0);
+                $overheadCost = (float) ($request->overhead_cost ?? 0);
 
+                $finalTotalCost = $totalCost + $laborCost + $overheadCost;
+                $finalUnitCost = $request->target_quantity > 0 ? (float) ($finalTotalCost / $request->target_quantity) : 0;
                 // প্রোডাকশন আপডেট (Costing Update)
                 $production->update([
-                    'total_cost' => $totalCost,
-                    'unit_cost' => $request->target_quantity > 0 ? (float) ($totalCost / $request->target_quantity) : 0,
-                ]);
+                                'total_cost' => $totalCost, // শুধু ম্যাটেরিয়াল কস্ট
+                                'total_material_cost' => $totalCost,
+                                'final_total_cost' => $finalTotalCost,
+                                'unit_cost' => $finalUnitCost, // ম্যাটেরিয়াল + লেবার + ওভারহেড মিলিয়ে পার পিস রেট
+                            ]);
+
+                            // ... production cost calculation seshe ...
+                            $production->unit_cost = $finalUnitCost;
+                            $production->save();
+
+                            // Ready Production Location (3)-e stock update kora
+                            InventoryStock::updateOrCreate(
+                                [
+                                    'product_id' => $production->finished_product_id,
+                                    'location_id' => 3,
+                                    'batch_no' => $production->batch_no,
+                                ],
+                                [
+                                    'quantity' => DB::raw("quantity + $request->target_quantity"),
+                                    'unit_cost' => $finalUnitCost, // <--- এটি এখন সেভ হবে
+                                    'created_by' => Auth::id(),
+                                ]
+                            );
+
+                            // মনে রাখবেন: নিচে থাকা 'finishedStock->increment' লাইনটি ডিলিট করে দিন কারণ উপরের updateOrCreate ই স্টক বাড়িয়ে দিচ্ছে।
+
+
 
                 // ঘ) ফিনিশড জুতো Location 3 (Ready Products) এ যোগ করা
                 $finishedStock = InventoryStock::firstOrCreate(
                     ['product_id' => $finishedProduct->id, 'location_id' => 3, 'batch_no' => $batchNo],
                     ['quantity' => 0]
+
                 );
-                $finishedStock->increment('quantity', $request->target_quantity);
+//                 $finishedStock->increment('quantity', $request->target_quantity);
 
                 InventoryTransaction::create([
-                    'date' => $request->production_date,
-                    'product_id' => $finishedProduct->id,
-                    'location_id' => 3,
-                    'transaction_type' => 'finished_good_in',
-                    'reference_type' => 'Production Final',
-                    'reference_id' => $production->id,
-                    'quantity' => $request->target_quantity,
-                    'unit_cost' => $production->unit_cost,
-                    'created_by' => Auth::id(),
-                ]);
+                                'date' => $request->production_date,
+                                'product_id' => $finishedProduct->id,
+                                'location_id' => 3,
+                                'transaction_type' => 'finished_good_in',
+                                'reference_type' => 'Production Final',
+                                'reference_id' => $production->id,
+                                'quantity' => $request->target_quantity,
+                                'unit_cost' => $finalUnitCost, // <--- এখানে $production->unit_cost এর বদলে $finalUnitCost দিন
+                                'created_by' => Auth::id(),
+                            ]);
 
                 DB::commit();
                 return redirect()->route('productions.index')->with('success', 'Production entry successful! Costs & Stocks are perfectly mapped.');

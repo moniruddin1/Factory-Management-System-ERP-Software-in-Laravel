@@ -21,6 +21,7 @@
                             <option value="raw_material_store" {{ $location->type == 'raw_material_store' ? 'selected' : '' }}>Raw Material Store (Main Godown)</option>
                             <option value="production_floor" {{ $location->type == 'production_floor' ? 'selected' : '' }}>Production Floor (WIP)</option>
                             <option value="finished_good_store" {{ $location->type == 'finished_good_store' ? 'selected' : '' }}>Finished Goods Store</option>
+                            <option value="store" {{ $location->type == 'store' ? 'selected' : '' }}>Store</option>
                         </select>
                     </div>
 

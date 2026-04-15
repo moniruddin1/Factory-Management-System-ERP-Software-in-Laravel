@@ -131,11 +131,30 @@
                             </tbody>
                         </table>
                     </div>
-
+                    <div class="mt-6 border-t border-gray-100 dark:border-slate-700 pt-4">
+                        <h4 class="text-sm font-bold text-gray-800 dark:text-white mb-3">Additional Costs (Optional)</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 dark:bg-[#0f172a]/50 p-4 rounded-lg border border-gray-200 dark:border-slate-700">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Labor / Staff Cost (Total for this batch)</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">৳</span>
+                                    <input type="number" step="0.01" name="labor_cost" value="0" min="0" class="w-full pl-8 bg-white dark:bg-[#1e293b] border border-gray-300 dark:border-slate-600 rounded-lg text-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Overhead Cost (Electricity, Machine etc)</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">৳</span>
+                                    <input type="number" step="0.01" name="overhead_cost" value="0" min="0" class="w-full pl-8 bg-white dark:bg-[#1e293b] border border-gray-300 dark:border-slate-600 rounded-lg text-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="mt-4 border-t border-gray-100 dark:border-slate-700 pt-4 flex justify-between items-center">
                         <div class="text-sm text-slate-500">
                             <i class="fa-solid fa-circle-info text-blue-500"></i> Extra materials will be deducted via FIFO. Unused materials will return to Main Godown.
                         </div>
+
                         <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition shadow-sm flex items-center">
                             <i class="fa-solid fa-check-double mr-2"></i> Submit Final Production
                         </button>
